@@ -1,0 +1,15 @@
+execute_map_sources=\
+	instrumentation/execution_map.cpp \
+	$(END)
+
+if is_instrumentation_enabled
+instrumentation_LTLIBRARIES +=\
+	instrumentation/libnanox-instrumentation-execmap.la \
+        $(END)
+
+instrumentation_libnanox_instrumentation_execmap_la_CPPFLAGS=$(common_instrumentation_CPPFLAGS)
+instrumentation_libnanox_instrumentation_execmap_la_CXXFLAGS=$(common_instrumentation_CXXFLAGS)
+instrumentation_libnanox_instrumentation_execmap_la_LDFLAGS=$(AM_LDFLAGS) $(ld_plugin_flags)
+instrumentation_libnanox_instrumentation_execmap_la_SOURCES=$(execute_map_sources)
+
+endif

@@ -1,0 +1,171 @@
+rip_sources = \
+	sched/locality-common.hpp \
+	sched/dep-method.hpp \
+	sched/rip-method.hpp \
+	sched/rip_sched.cpp \
+	$(END)
+
+dep_sources = \
+	sched/locality-common.hpp \
+	sched/dep-method.hpp \
+	sched/dep_sched.cpp \
+	$(END)
+
+dfifo_sources = \
+	sched/dfifo_sched.cpp \
+	$(END)
+
+####### DEBUG LIBRARIES #######
+
+if is_debug_enabled
+debug_LTLIBRARIES +=\
+	debug/libnanox-sched-rip.la \
+	$(END)
+debug_libnanox_sched_rip_la_CPPFLAGS = $(common_debug_CPPFLAGS) -DNANOS_USE_SCOTCH -I@SCOTCH_HOME@/include -DRIP_SUFFIX=SCOTCH
+debug_libnanox_sched_rip_la_CXXFLAGS = $(common_debug_CXXFLAGS) -DNANOS_USE_SCOTCH -I@SCOTCH_HOME@/include -DRIP_SUFFIX=SCOTCH
+debug_libnanox_sched_rip_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@SCOTCH_HOME@/lib -lscotch -lscotcherrexit
+debug_libnanox_sched_rip_la_SOURCES = $(rip_sources)
+
+if METAPART
+debug_LTLIBRARIES +=\
+	debug/libnanox-sched-ripm.la \
+	$(END)
+debug_libnanox_sched_ripm_la_CPPFLAGS = $(common_debug_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
+debug_libnanox_sched_ripm_la_CXXFLAGS = $(common_debug_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
+debug_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -fopenmp -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group
+debug_libnanox_sched_ripm_la_SOURCES = $(rip_sources)
+endif
+
+debug_LTLIBRARIES +=\
+	debug/libnanox-sched-dep.la \
+	$(END)
+debug_libnanox_sched_dep_la_CPPFLAGS = $(common_debug_CPPFLAGS)
+debug_libnanox_sched_dep_la_CXXFLAGS = $(common_debug_CXXFLAGS)
+debug_libnanox_sched_dep_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+debug_libnanox_sched_dep_la_SOURCES = $(dep_sources)
+
+debug_LTLIBRARIES +=\
+	debug/libnanox-sched-dfifo.la \
+	$(END)
+debug_libnanox_sched_dfifo_la_CPPFLAGS = $(common_debug_CPPFLAGS)
+debug_libnanox_sched_dfifo_la_CXXFLAGS = $(common_debug_CXXFLAGS)
+debug_libnanox_sched_dfifo_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+debug_libnanox_sched_dfifo_la_SOURCES = $(dfifo_sources)
+endif
+
+
+####### INSTRUMENTATION DEBUG LIBRARIES #######
+
+if is_instrumentation_debug_enabled
+instrumentation_debug_LTLIBRARIES +=\
+	instrumentation-debug/libnanox-sched-rip.la \
+	$(END)
+instrumentation_debug_libnanox_sched_rip_la_CPPFLAGS = $(common_instrumentation_debug_CPPFLAGS) -DNANOS_USE_SCOTCH -I@SCOTCH_HOME@/include -DRIP_SUFFIX=SCOTCH
+instrumentation_debug_libnanox_sched_rip_la_CXXFLAGS = $(common_instrumentation_debug_CXXFLAGS) -DNANOS_USE_SCOTCH -I@SCOTCH_HOME@/include -DRIP_SUFFIX=SCOTCH
+instrumentation_debug_libnanox_sched_rip_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@SCOTCH_HOME@/lib -lscotch -lscotcherrexit
+instrumentation_debug_libnanox_sched_rip_la_SOURCES = $(rip_sources)
+
+if METAPART
+instrumentation_debug_LTLIBRARIES +=\
+	instrumentation-debug/libnanox-sched-ripm.la \
+	$(END)
+instrumentation_debug_libnanox_sched_ripm_la_CPPFLAGS = $(common_instrumentation_debug_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
+instrumentation_debug_libnanox_sched_ripm_la_CXXFLAGS = $(common_instrumentation_debug_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
+instrumentation_debug_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -fopenmp -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group
+instrumentation_debug_libnanox_sched_ripm_la_SOURCES = $(rip_sources)
+endif
+
+instrumentation_debug_LTLIBRARIES +=\
+	instrumentation-debug/libnanox-sched-dep.la \
+	$(END)
+instrumentation_debug_libnanox_sched_dep_la_CPPFLAGS = $(common_instrumentation_debug_CPPFLAGS)
+instrumentation_debug_libnanox_sched_dep_la_CXXFLAGS = $(common_instrumentation_debug_CXXFLAGS)
+instrumentation_debug_libnanox_sched_dep_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+instrumentation_debug_libnanox_sched_dep_la_SOURCES = $(dep_sources)
+
+instrumentation_debug_LTLIBRARIES +=\
+	instrumentation-debug/libnanox-sched-dfifo.la \
+	$(END)
+instrumentation_debug_libnanox_sched_dfifo_la_CPPFLAGS = $(common_instrumentation_debug_CPPFLAGS)
+instrumentation_debug_libnanox_sched_dfifo_la_CXXFLAGS = $(common_instrumentation_debug_CXXFLAGS)
+instrumentation_debug_libnanox_sched_dfifo_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+instrumentation_debug_libnanox_sched_dfifo_la_SOURCES = $(dfifo_sources)
+endif
+
+
+####### INSTRUMENTATION LIBRARIES #######
+
+if is_instrumentation_enabled
+instrumentation_LTLIBRARIES +=\
+	instrumentation/libnanox-sched-rip.la \
+	$(END)
+instrumentation_libnanox_sched_rip_la_CPPFLAGS = $(common_instrumentation_CPPFLAGS) -DNANOS_USE_SCOTCH -I@SCOTCH_HOME@/include -DRIP_SUFFIX=SCOTCH
+instrumentation_libnanox_sched_rip_la_CXXFLAGS = $(common_instrumentation_CXXFLAGS) -DNANOS_USE_SCOTCH -I@SCOTCH_HOME@/include -DRIP_SUFFIX=SCOTCH
+instrumentation_libnanox_sched_rip_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@SCOTCH_HOME@/lib -lscotch -lscotcherrexit
+instrumentation_libnanox_sched_rip_la_SOURCES = $(rip_sources)
+
+if METAPART
+instrumentation_LTLIBRARIES +=\
+	instrumentation/libnanox-sched-ripm.la \
+	$(END)
+instrumentation_libnanox_sched_ripm_la_CPPFLAGS = $(common_instrumentation_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
+instrumentation_libnanox_sched_ripm_la_CXXFLAGS = $(common_instrumentation_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
+instrumentation_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -fopenmp -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group
+instrumentation_libnanox_sched_ripm_la_SOURCES = $(rip_sources)
+endif
+
+instrumentation_LTLIBRARIES +=\
+	instrumentation/libnanox-sched-dep.la \
+	$(END)
+instrumentation_libnanox_sched_dep_la_CPPFLAGS = $(common_instrumentation_CPPFLAGS)
+instrumentation_libnanox_sched_dep_la_CXXFLAGS = $(common_instrumentation_CXXFLAGS)
+instrumentation_libnanox_sched_dep_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+instrumentation_libnanox_sched_dep_la_SOURCES = $(dep_sources)
+
+instrumentation_LTLIBRARIES +=\
+	instrumentation/libnanox-sched-dfifo.la \
+	$(END)
+instrumentation_libnanox_sched_dfifo_la_CPPFLAGS = $(common_instrumentation_CPPFLAGS)
+instrumentation_libnanox_sched_dfifo_la_CXXFLAGS = $(common_instrumentation_CXXFLAGS)
+instrumentation_libnanox_sched_dfifo_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+instrumentation_libnanox_sched_dfifo_la_SOURCES = $(dfifo_sources)
+endif
+
+
+####### PERFORMANCE LIBRARIES #######
+
+if is_performance_enabled
+performance_LTLIBRARIES +=\
+	performance/libnanox-sched-rip.la \
+	$(END)
+performance_libnanox_sched_rip_la_CPPFLAGS = $(common_performance_CPPFLAGS) -DNANOS_USE_SCOTCH -I@SCOTCH_HOME@/include -DRIP_SUFFIX=SCOTCH
+performance_libnanox_sched_rip_la_CXXFLAGS = $(common_performance_CXXFLAGS) -DNANOS_USE_SCOTCH -I@SCOTCH_HOME@/include -DRIP_SUFFIX=SCOTCH
+performance_libnanox_sched_rip_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@SCOTCH_HOME@/lib -lscotch -lscotcherrexit
+performance_libnanox_sched_rip_la_SOURCES = $(rip_sources)
+
+if METAPART
+performance_LTLIBRARIES +=\
+	performance/libnanox-sched-ripm.la \
+	$(END)
+performance_libnanox_sched_ripm_la_CPPFLAGS = $(common_performance_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
+performance_libnanox_sched_ripm_la_CXXFLAGS = $(common_performance_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
+performance_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -fopenmp -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group
+performance_libnanox_sched_ripm_la_SOURCES = $(rip_sources)
+endif
+
+performance_LTLIBRARIES +=\
+	performance/libnanox-sched-dep.la \
+	$(END)
+performance_libnanox_sched_dep_la_CPPFLAGS = $(common_performance_CPPFLAGS)
+performance_libnanox_sched_dep_la_CXXFLAGS = $(common_performance_CXXFLAGS)
+performance_libnanox_sched_dep_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+performance_libnanox_sched_dep_la_SOURCES = $(dep_sources)
+
+performance_LTLIBRARIES +=\
+	performance/libnanox-sched-dfifo.la \
+	$(END)
+performance_libnanox_sched_dfifo_la_CPPFLAGS = $(common_performance_CPPFLAGS)
+performance_libnanox_sched_dfifo_la_CXXFLAGS = $(common_performance_CXXFLAGS)
+performance_libnanox_sched_dfifo_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+performance_libnanox_sched_dfifo_la_SOURCES = $(dfifo_sources)
+endif

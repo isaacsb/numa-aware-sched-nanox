@@ -1,0 +1,31 @@
+END=
+
+devincludedir=@NANOX_DEVINCLUDES@
+
+common_includes=\
+	-I$(top_builddir)\
+	-I@NANOX_INCLUDES@\
+	-I@NANOX_DEVINCLUDES@\
+	-include "nanox-config.h" \
+	$(END)
+
+api_includes=\
+	-I@NANOX_INCLUDES@
+
+AM_CPPFLAGS=-D_NANOS_INTERNAL @cc_dep_CPPFLAGS@ @hwlocinc@ $(common_includes) -DLIBDIR='$(libdir)'
+AM_CXXFLAGS=@PTHREAD_CFLAGS@ @cc_dep_CXXFLAGS@
+AM_LDFLAGS=@hwloclib@
+LIBS+=@hwloclibs@ @PTHREAD_LIBS@
+
+common_performance_CPPFLAGS= $(AM_CPPFLAGS) @performance_CPPFLAGS@
+common_debug_CPPFLAGS= $(AM_CPPFLAGS) @debug_CPPFLAGS@
+common_instrumentation_CPPFLAGS= $(AM_CPPFLAGS) @instrumentation_CPPFLAGS@
+common_instrumentation_debug_CPPFLAGS= $(AM_CPPFLAGS) @instrumentation_debug_CPPFLAGS@
+
+common_performance_CXXFLAGS= $(AM_CXXFLAGS) @performance_CXXFLAGS@
+common_debug_CXXFLAGS= $(AM_CXXFLAGS) @debug_CXXFLAGS@
+common_instrumentation_CXXFLAGS= $(AM_CXXFLAGS) @instrumentation_CXXFLAGS@
+common_instrumentation_debug_CXXFLAGS= $(AM_CXXFLAGS) @instrumentation_debug_CXXFLAGS@
+
+version_flags= -version-info 1:0:0
+ld_plugin_flags= -module -avoid-version
