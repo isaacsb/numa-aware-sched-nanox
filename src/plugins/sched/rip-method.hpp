@@ -85,8 +85,8 @@ namespace nanos {
         template<typename T>
         void afterPartition( T notifySched ) { _notifyScheduler = notifySched; }
         void seed(int s);
+        void seedPartitioner(int s) { SCOTCH_randomSeed(s); }
         void setRandObject(std::tr1::mt19937 & r);
-        void scotchSeed(SCOTCH_Num s);
         void ripInfo(RipInfo & (* f) (WD &)) { _ripInfo = f; }
         void parentSched(SchedulePolicy * parentSched) { _parentSched = parentSched; }
         void init();
@@ -347,23 +347,23 @@ namespace nanos {
         const DependableObject::TargetVector &rt = doS->getReadTargets();
 	for (_tvIt it = rt.begin(); it != rt.end(); ++it) {
 	  const void *dep = (*it)->getAddress();
-	  size_t size = (static_cast<DepsRegion * const>(*it))->getSize();
+	  size_t size = (static_cast<DepsRegion *>(*it))->getSize();
           if (size <= _minDepSize)
             continue;
           
           int o_parent = _oldPred[dep];
           if (_oldDep and o_parent != 0) { // If 0, nobody has written to it yet
             if (_deps[o_parent].find(virtId) == _deps[o_parent].end()) {
-              _deps[o_parent].insert(std::make_pair(virtId, (size>>10) + 1));
-              _invdeps[virtId].insert(std::make_pair(o_parent, (size>>10) + 1));
+              _deps[o_parent].insert(std::make_pair(virtId, size));
+              _invdeps[virtId].insert(std::make_pair(o_parent, size));
             }
           }
 
           int parent = _pred[dep];
           if (parent != 0 and parent != o_parent) { // If 0, nobody has written to it yet
             if (_deps[parent].find(virtId) == _deps[parent].end()) {
-              _deps[parent].insert(std::make_pair(virtId, (size>>10) + 1));
-              _invdeps[virtId].insert(std::make_pair(parent, (size>>10) + 1));
+              _deps[parent].insert(std::make_pair(virtId, size));
+              _invdeps[virtId].insert(std::make_pair(parent, size));
             }
           }
 
@@ -373,23 +373,23 @@ namespace nanos {
 	const DependableObject::TargetVector &wt = doS->getWrittenTargets();
 	for (_tvIt it = wt.begin(); it != wt.end(); ++it) {
 	  const void *dep = (*it)->getAddress();
-	  size_t size = (static_cast<DepsRegion * const>(*it))->getSize();
+	  size_t size = (static_cast<DepsRegion *>(*it))->getSize();
           if (size <= _minDepSize)
             continue;
           
 	  int o_parent = _oldPred[dep];
 	  if (_oldDep and o_parent != 0 and o_parent != virtId) {
 	    if (_deps[o_parent].find(virtId) == _deps[o_parent].end()) {
-	      _deps[o_parent].insert(std::make_pair(virtId, (size>>10) + 1));
-	      _invdeps[virtId].insert(std::make_pair(o_parent, (size>>10) + 1));
+	      _deps[o_parent].insert(std::make_pair(virtId, size));
+	      _invdeps[virtId].insert(std::make_pair(o_parent, size));
 	    }
 	  }
 	  
 	  int parent = _pred[dep];
 	  if (parent != 0 and parent != virtId and parent != o_parent) { // If -1, nobody has written to it yet
 	    if (_deps[parent].find(virtId) == _deps[parent].end()) {
-	      _deps[parent].insert(std::make_pair(virtId, (size>>10) + 1));
-	      _invdeps[virtId].insert(std::make_pair(parent, (size>>10) + 1));
+	      _deps[parent].insert(std::make_pair(virtId, size));
+	      _invdeps[virtId].insert(std::make_pair(parent, size));
 	    }
 	  }
 
@@ -440,7 +440,7 @@ namespace nanos {
 	       ++it) {
 	    if (it->first >= first and it->first <= last) {
 	      g.edgetab.push_back(static_cast<SCOTCH_Num>(it->first - first));
-	      g.edlotab.push_back(static_cast<SCOTCH_Num>(it->second));
+	      g.edlotab.push_back(static_cast<SCOTCH_Num>(std::max(static_cast<SCOTCH_Num>(it->second/1024), (SCOTCH_Num) 1)));
 	    }
 	  }
 
@@ -451,7 +451,7 @@ namespace nanos {
 	       ++it) {
 	    if (it->first >= first and it->first <= last) {
 	      g.edgetab.push_back(static_cast<SCOTCH_Num>(it->first - first));
-	      g.edlotab.push_back(static_cast<SCOTCH_Num>(it->second));
+	      g.edlotab.push_back(static_cast<SCOTCH_Num>(std::max(static_cast<SCOTCH_Num>(it->second/1024), (SCOTCH_Num) 1)));
 	    }
 
 	    if (prev_old and it->first >= next) {

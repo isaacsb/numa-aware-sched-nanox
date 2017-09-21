@@ -147,7 +147,7 @@ namespace nanos {
 
       virtual void queue ( BaseThread ** threads, WD ** wds, size_t numElems )
       {
-        fatal( "This method is not implemented yet" );
+        SchedulePolicy::queue(threads, wds, numElems);
       }
 
       /*!

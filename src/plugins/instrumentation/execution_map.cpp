@@ -136,7 +136,7 @@ namespace nanos {
 	    }
 	  }
 
-	  mapFile << ' ' << it->second.name;
+	  mapFile << ' ' << it->second.name; // << ' ' << it->first;
 
 	  mapFile << std::endl;
 	}
@@ -148,8 +148,12 @@ namespace nanos {
     void enable( void ) {}
     void addResumeTask( WorkDescriptor &w )
     {
-      if (w.isImplicit() or w.getId() <= sys.getNumThreads() + 1) // or not last)
+      if (w.isImplicit() or w.isRuntimeTask() or w.getId() <= sys.getNumThreads() + 1) // or not last)
 	return;
+
+      if (sys.getPMInterface().getInterface() == PMInterface::OpenMP and w.getDepth() <= 1) {
+        return;
+      }
 
       unsigned node = myThread->runningOn()->getNumaNode();
       int vNode = static_cast<int>( sys.getVirtualNUMANode( node ) );

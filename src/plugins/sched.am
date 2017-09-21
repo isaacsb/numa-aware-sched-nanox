@@ -15,6 +15,14 @@ dfifo_sources = \
 	sched/dfifo_sched.cpp \
 	$(END)
 
+precalculated_sources = \
+	sched/precalculated_sched.cpp \
+	$(END)
+
+metapart_sources = \
+	sched/metapart_sched.cpp \
+	$(END)
+
 ####### DEBUG LIBRARIES #######
 
 if is_debug_enabled
@@ -32,8 +40,16 @@ debug_LTLIBRARIES +=\
 	$(END)
 debug_libnanox_sched_ripm_la_CPPFLAGS = $(common_debug_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
 debug_libnanox_sched_ripm_la_CXXFLAGS = $(common_debug_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
-debug_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -fopenmp -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group
+debug_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group -fopenmp
 debug_libnanox_sched_ripm_la_SOURCES = $(rip_sources)
+
+debug_LTLIBRARIES +=\
+	debug/libnanox-sched-metapart.la \
+	$(END)
+debug_libnanox_sched_metapart_la_CPPFLAGS = $(common_debug_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DMETAPART_SUFFIX=metapart
+debug_libnanox_sched_metapart_la_CXXFLAGS = $(common_debug_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DMETAPART_SUFFIX=metapart
+debug_libnanox_sched_metapart_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group -lnuma -fopenmp
+debug_libnanox_sched_metapart_la_SOURCES = $(metapart_sources)
 endif
 
 debug_LTLIBRARIES +=\
@@ -51,6 +67,15 @@ debug_libnanox_sched_dfifo_la_CPPFLAGS = $(common_debug_CPPFLAGS)
 debug_libnanox_sched_dfifo_la_CXXFLAGS = $(common_debug_CXXFLAGS)
 debug_libnanox_sched_dfifo_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
 debug_libnanox_sched_dfifo_la_SOURCES = $(dfifo_sources)
+
+debug_LTLIBRARIES +=\
+	debug/libnanox-sched-precalculated.la \
+	$(END)
+debug_libnanox_sched_precalculated_la_CPPFLAGS = $(common_debug_CPPFLAGS)
+debug_libnanox_sched_precalculated_la_CXXFLAGS = $(common_debug_CXXFLAGS)
+debug_libnanox_sched_precalculated_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+debug_libnanox_sched_precalculated_la_SOURCES = $(precalculated_sources)
+
 endif
 
 
@@ -71,7 +96,7 @@ instrumentation_debug_LTLIBRARIES +=\
 	$(END)
 instrumentation_debug_libnanox_sched_ripm_la_CPPFLAGS = $(common_instrumentation_debug_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
 instrumentation_debug_libnanox_sched_ripm_la_CXXFLAGS = $(common_instrumentation_debug_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
-instrumentation_debug_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -fopenmp -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group
+instrumentation_debug_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group -fopenmp
 instrumentation_debug_libnanox_sched_ripm_la_SOURCES = $(rip_sources)
 endif
 
@@ -90,6 +115,15 @@ instrumentation_debug_libnanox_sched_dfifo_la_CPPFLAGS = $(common_instrumentatio
 instrumentation_debug_libnanox_sched_dfifo_la_CXXFLAGS = $(common_instrumentation_debug_CXXFLAGS)
 instrumentation_debug_libnanox_sched_dfifo_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
 instrumentation_debug_libnanox_sched_dfifo_la_SOURCES = $(dfifo_sources)
+
+instrumentation_debug_LTLIBRARIES +=\
+	instrumentation-debug/libnanox-sched-precalculated.la \
+	$(END)
+instrumentation_debug_libnanox_sched_precalculated_la_CPPFLAGS = $(common_instrumentation_debug_CPPFLAGS)
+instrumentation_debug_libnanox_sched_precalculated_la_CXXFLAGS = $(common_instrumentation_debug_CXXFLAGS)
+instrumentation_debug_libnanox_sched_precalculated_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+instrumentation_debug_libnanox_sched_precalculated_la_SOURCES = $(precalculated_sources)
+
 endif
 
 
@@ -110,8 +144,16 @@ instrumentation_LTLIBRARIES +=\
 	$(END)
 instrumentation_libnanox_sched_ripm_la_CPPFLAGS = $(common_instrumentation_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
 instrumentation_libnanox_sched_ripm_la_CXXFLAGS = $(common_instrumentation_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
-instrumentation_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -fopenmp -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group
+instrumentation_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group -fopenmp
 instrumentation_libnanox_sched_ripm_la_SOURCES = $(rip_sources)
+
+instrumentation_LTLIBRARIES +=\
+	instrumentation/libnanox-sched-metapart.la \
+	$(END)
+instrumentation_libnanox_sched_metapart_la_CPPFLAGS = $(common_instrumentation_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DMETAPART_SUFFIX=metapart
+instrumentation_libnanox_sched_metapart_la_CXXFLAGS = $(common_instrumentation_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DMETAPART_SUFFIX=metapart
+instrumentation_libnanox_sched_metapart_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group -lnuma -fopenmp
+instrumentation_libnanox_sched_metapart_la_SOURCES = $(metapart_sources)
 endif
 
 instrumentation_LTLIBRARIES +=\
@@ -129,6 +171,15 @@ instrumentation_libnanox_sched_dfifo_la_CPPFLAGS = $(common_instrumentation_CPPF
 instrumentation_libnanox_sched_dfifo_la_CXXFLAGS = $(common_instrumentation_CXXFLAGS)
 instrumentation_libnanox_sched_dfifo_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
 instrumentation_libnanox_sched_dfifo_la_SOURCES = $(dfifo_sources)
+
+instrumentation_LTLIBRARIES +=\
+	instrumentation/libnanox-sched-precalculated.la \
+	$(END)
+instrumentation_libnanox_sched_precalculated_la_CPPFLAGS = $(common_instrumentation_CPPFLAGS)
+instrumentation_libnanox_sched_precalculated_la_CXXFLAGS = $(common_instrumentation_CXXFLAGS)
+instrumentation_libnanox_sched_precalculated_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+instrumentation_libnanox_sched_precalculated_la_SOURCES = $(precalculated_sources)
+
 endif
 
 
@@ -149,8 +200,16 @@ performance_LTLIBRARIES +=\
 	$(END)
 performance_libnanox_sched_ripm_la_CPPFLAGS = $(common_performance_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
 performance_libnanox_sched_ripm_la_CXXFLAGS = $(common_performance_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DRIP_SUFFIX=metapart
-performance_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -fopenmp -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group
+performance_libnanox_sched_ripm_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,--end-group -fopenmp
 performance_libnanox_sched_ripm_la_SOURCES = $(rip_sources)
+
+performance_LTLIBRARIES +=\
+	performance/libnanox-sched-metapart.la \
+	$(END)
+performance_libnanox_sched_metapart_la_CPPFLAGS = $(common_performance_CPPFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DMETAPART_SUFFIX=metapart
+performance_libnanox_sched_metapart_la_CXXFLAGS = $(common_performance_CXXFLAGS) -DUSE_METAPART -I@METAPART_HOME@/include -DMETAPART_SUFFIX=metapart
+performance_libnanox_sched_metapart_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags) -L@METAPART_HOME@/lib -Wl,--start-group,-lmetapart,-lscotch,-lscotcherrexit,-lnuma,--end-group -fopenmp
+performance_libnanox_sched_metapart_la_SOURCES = $(metapart_sources)
 endif
 
 performance_LTLIBRARIES +=\
@@ -168,4 +227,12 @@ performance_libnanox_sched_dfifo_la_CPPFLAGS = $(common_performance_CPPFLAGS)
 performance_libnanox_sched_dfifo_la_CXXFLAGS = $(common_performance_CXXFLAGS)
 performance_libnanox_sched_dfifo_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
 performance_libnanox_sched_dfifo_la_SOURCES = $(dfifo_sources)
+
+performance_LTLIBRARIES +=\
+	performance/libnanox-sched-precalculated.la \
+	$(END)
+performance_libnanox_sched_precalculated_la_CPPFLAGS = $(common_performance_CPPFLAGS)
+performance_libnanox_sched_precalculated_la_CXXFLAGS = $(common_performance_CXXFLAGS)
+performance_libnanox_sched_precalculated_la_LDFLAGS = $(AM_LDFLAGS) $(ld_plugin_flags)
+performance_libnanox_sched_precalculated_la_SOURCES = $(precalculated_sources)
 endif

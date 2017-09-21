@@ -107,7 +107,7 @@ namespace nanos {
         for (_tvIt it = rt.begin(); it != rt.end(); ++it) {
           const void *dep = (*it)->getAddress();
           int currentSocket = _dependencySocket[dep];
-          size_t size = (static_cast<DepsRegion * const>(*it))->getSize();
+          size_t size = (static_cast<DepsRegion *>(*it))->getSize();
           if (size > _minDepSize)
             _helper[currentSocket] += size;
         }
@@ -116,7 +116,7 @@ namespace nanos {
         for (_tvIt it = wt.begin(); it != wt.end(); ++it) {
           const void *dep = (*it)->getAddress();
           int currentSocket = _dependencySocket[dep];
-          size_t size = (static_cast<DepsRegion * const>(*it))->getSize();
+          size_t size = (static_cast<DepsRegion *>(*it))->getSize();
           if (size > _minDepSize)
             _helper[currentSocket] += size;
         }

@@ -65,6 +65,11 @@ namespace nanos {
         tdata.readyQueues[socket].push_back( &wd );
       }
 
+      virtual void queue ( BaseThread ** threads, WD ** wds, size_t numElems )
+      {
+        SchedulePolicy::queue(threads, wds, numElems);
+      }
+
       virtual WD * atSubmit( BaseThread *thread, WD &newWD )
       {
 	queue( thread, newWD );

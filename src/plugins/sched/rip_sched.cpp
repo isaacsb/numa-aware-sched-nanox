@@ -9,6 +9,7 @@
 #include "rip-method.hpp"
 #include "dep-method.hpp"
 
+
 #include <map>
 #include <vector>
 #include <cassert>
@@ -85,7 +86,7 @@ namespace nanos {
       Atomic<int> _lastPartitionScheduled;
       
     public:
-      RipSchedPolicy(bool steal, size_t minDepSize, RipModes::type mode, int wSize, int wIntersection, int wInitExtra, double imbalance, const std::string & distanceMatFilename)
+      RipSchedPolicy(bool steal, size_t minDepSize, RipModes::type mode, int wSize, int wIntersection, int wInitExtra, double imbalance, const std::string & distanceMatFilename, int seed, int partitionerSeed)
 	: SchedulePolicy( "Dependency" ),
           _steal(steal),
           _mode(mode),
@@ -94,12 +95,13 @@ namespace nanos {
           _wInitExtra(wInitExtra),
           _imbalance(imbalance),
           _distanceMatFilename(distanceMatFilename),
-	  _rand(time(NULL)),
+	  _rand(seed),
           _lastPartitionScheduled(0)
       {
 	_dep.setRandObject(_rand);
         _dep.minDepSize(minDepSize);
         _rip.minDepSize(minDepSize);
+        _rip.seedPartitioner(partitionerSeed);
       }
 
       virtual ~RipSchedPolicy()
@@ -149,6 +151,11 @@ namespace nanos {
 
 	TeamData & tdata = * (TeamData *) thread->getTeam()->getScheduleData();
         tdata.readyQueues[socket].push_back( &wd );
+      }
+
+      virtual void queue ( BaseThread ** threads, WD ** wds, size_t numElems )
+      {
+        SchedulePolicy::queue(threads, wds, numElems);
       }
 
       virtual WD * atSubmit( BaseThread *thread, WD &newWD )
@@ -534,6 +541,16 @@ namespace nanos {
       }
 
       virtual bool usingPriorities() const;
+
+      virtual std::string getSummary() const
+      {
+        std::ostringstream oss;
+        oss << "RIP scheduler stats" << '\n'
+            << "sockets: " << _rip.numSockets() << '\n'
+            << "numa nodes: " << sys.getNumNumaNodes() << '\n';
+
+        return oss.str();
+      }
     };
 
     template<>
@@ -557,6 +574,8 @@ namespace nanos {
       int _wIntersection;
       int _wInitExtra;
       double _imbalance;
+      int _seed;
+      int _partitionerSeed;
       std::string _mode;
       std::string _distanceMat;
       RipModes _ripModes;
@@ -570,7 +589,9 @@ namespace nanos {
           _wSize(128),
           _wIntersection(0),
           _wInitExtra(0),
-          _imbalance(0.01)
+          _imbalance(0.01),
+          _seed(time(NULL)),
+          _partitionerSeed(time(NULL) + 1)
       {
         _mode = _ripModes.defaultMode();
       }
@@ -607,6 +628,12 @@ namespace nanos {
         cfg.registerConfigOption( "rip-imbalance", NEW Config::VarOption<double, Config::HelpFormat> ( _imbalance ), "Maximum imbalance ratio for initial window (default: 0.01" );
         cfg.registerArgOption( "rip-imbalance", "rip-imbalance" );
 
+        cfg.registerConfigOption( "rip-partitioner-seed", NEW Config::IntegerVar( _partitionerSeed ), "Seed for the partitioner" );
+	cfg.registerArgOption( "rip-partitioner-seed", "rip-partitioner-seed" );
+
+	cfg.registerConfigOption( "rip-internal-seed", NEW Config::IntegerVar( _seed ), "Internal random seed for the scheduler" );
+	cfg.registerArgOption( "rip-internal-seed", "rip-internal-seed" );
+
         cfg.registerConfigOption( "rip-distance-mat", NEW Config::StringVar ( _distanceMat ), "Matrix of distances (optional)" );
         cfg.registerArgOption( "rip-distance-mat", "rip-distance-mat" );
       }
@@ -614,9 +641,9 @@ namespace nanos {
       virtual void init()
       {
         if (_priority)
-          sys.setDefaultSchedulePolicy( NEW RipSchedPolicy<WDPriorityQueue<> >( _steal, _minDepSize, _ripModes.value(_mode), _wSize, _wIntersection, _wInitExtra, _imbalance, _distanceMat ) );
+          sys.setDefaultSchedulePolicy( NEW RipSchedPolicy<WDPriorityQueue<> >( _steal, _minDepSize, _ripModes.value(_mode), _wSize, _wIntersection, _wInitExtra, _imbalance, _distanceMat, _seed, _partitionerSeed ) );
         else
-          sys.setDefaultSchedulePolicy( NEW RipSchedPolicy<WDDeque>( _steal, _minDepSize, _ripModes.value(_mode), _wSize, _wIntersection, _wInitExtra, _imbalance, _distanceMat ) );
+          sys.setDefaultSchedulePolicy( NEW RipSchedPolicy<WDDeque>( _steal, _minDepSize, _ripModes.value(_mode), _wSize, _wIntersection, _wInitExtra, _imbalance, _distanceMat, _seed, _partitionerSeed ) );
       }
     };
   }
