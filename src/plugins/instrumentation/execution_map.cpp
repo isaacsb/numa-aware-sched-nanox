@@ -2,7 +2,7 @@
 #include "system.hpp"
 #include "instrumentation.hpp"
 #include "lock.hpp"
-#include <map>
+#include <deque>
 #include <string>
 #include <fstream>
 
@@ -36,6 +36,7 @@ namespace nanos {
       std::string name;
       std::vector< std::pair<const void *, size_t> > in_addr;
       std::vector< std::pair<const void *, size_t> > out_addr;
+      Lock task_lock;
 
       _TaskData(int new_numa_node=-1)
 	: numa_node(new_numa_node),
@@ -85,7 +86,7 @@ namespace nanos {
     bool _deps;
     std::string _filename;
     Lock _mapLock;
-    std::map<int, _TaskData> _execMap;
+    std::deque<_TaskData> _execMap;
     
   public:
     // constructor
@@ -105,6 +106,7 @@ namespace nanos {
     void finalize( void )
     {
       warning0( "Saving execution map to file " << _filename );
+      
       std::ofstream mapFile;
       mapFile.open(_filename.c_str());
       if ( not mapFile.good() ) {
@@ -112,33 +114,46 @@ namespace nanos {
       }
       else {
 	mapFile << sys.getNumNumaNodes() << std::endl;
-	mapFile << _execMap.size() << std::endl;
+
+        int size = 0;
+        for (std::deque<_TaskData>::const_iterator it = _execMap.begin();
+	     it != _execMap.end();
+	     ++it) {
+          if (it->numa_node > -1)
+            ++size;
+        }
+        
+	mapFile << size << std::endl;
 
 	int i = 0;
-	for (std::map<int, _TaskData>::const_iterator it = _execMap.begin();
+	for (std::deque<_TaskData>::const_iterator it = _execMap.begin();
 	     it != _execMap.end();
-	     ++it, ++i) {
-	  mapFile << i << ' ' << it->second.numa_node;
-
-	  if (_deps) {
-	    mapFile << ' ' << it->second.in_addr.size();
-	    for (std::vector< std::pair<const void *, size_t> >::const_iterator d = it->second.in_addr.begin();
-		 d != it->second.in_addr.end();
+	     ++it) {
+          if (it->numa_node != -1) {
+            mapFile << i << ' ' << it->numa_node;
+            
+            if (_deps) {
+              mapFile << ' ' << it->in_addr.size();
+              for (std::vector< std::pair<const void *, size_t> >::const_iterator d = it->in_addr.begin();
+                   d != it->in_addr.end();
 		 ++d) {
-	      mapFile << ' ' << d->first << ' ' << d->second;
-	    }
+                mapFile << ' ' << d->first << ' ' << d->second;
+              }
+              
+              mapFile << ' ' << it->out_addr.size();
+              for (std::vector< std::pair<const void *, size_t> >::const_iterator d = it->out_addr.begin();
+                   d != it->out_addr.end();
+                   ++d) {
+                mapFile << ' ' << d->first << ' ' << d->second;
+              }
+            }
+            
+            mapFile << ' ' << it->name; // << ' ' << it->first;
+            
+            mapFile << std::endl;
 
-	    mapFile << ' ' << it->second.out_addr.size();
-	    for (std::vector< std::pair<const void *, size_t> >::const_iterator d = it->second.out_addr.begin();
-		 d != it->second.out_addr.end();
-		 ++d) {
-	      mapFile << ' ' << d->first << ' ' << d->second;
-	    }
-	  }
-
-	  mapFile << ' ' << it->second.name; // << ' ' << it->first;
-
-	  mapFile << std::endl;
+            ++i;
+          }
 	}
 
 	mapFile.close();
@@ -157,15 +172,19 @@ namespace nanos {
 
       unsigned node = myThread->runningOn()->getNumaNode();
       int vNode = static_cast<int>( sys.getVirtualNUMANode( node ) );
-      
-      SyncLockBlock b(_mapLock);
-      
-      std::map<int, _TaskData>::iterator it = _execMap.find(w.getId());
-      if (it == _execMap.end()) {
-	_TaskData & d = _execMap[w.getId()] = vNode;
 
+      _mapLock.acquire();
+      if (static_cast<int>(_execMap.size()) <= w.getId())
+        _execMap.resize(w.getId() + 1);
+      _mapLock.release();
+
+      SyncLockBlock b(_execMap[w.getId()].task_lock);
+      
+      _TaskData &d = _execMap[w.getId()];
+      
+      if (d.numa_node == -1) {
 	d.name = w.getDescription();
-	
+	d.numa_node = vNode;
 	DOSubmit * doS = w.getDOSubmit();
 	if (_deps and doS != NULL) {
 	  const DependableObject::TargetVector &rt = doS->getReadTargets();
@@ -179,10 +198,10 @@ namespace nanos {
 	  }
 	}
       }
-      else if (it->second != vNode) {
-	warning( "Work descriptor " << w.getId() << " has changed node from " << it->second.numa_node << " to " << vNode );
+      else if (d.numa_node != vNode) {
+	warning( "Work descriptor " << w.getId() << " has changed node from " << d.numa_node << " to " << vNode );
 	if (_last) {
-	  it->second = vNode;
+	  d = vNode;
 	}
       }
     }

@@ -6,9 +6,9 @@
 #include "config.hpp"
 #include "os.hpp"
 
+#define LOCALITY_USE_NUMA
 #include "rip-method.hpp"
 #include "dep-method.hpp"
-
 
 #include <map>
 #include <vector>
@@ -18,6 +18,11 @@
 #include <utility>
 #include <cmath>
 #include <tr1/random>
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <dlfcn.h> // interposition...
 
 #ifndef RIP_SUFFIX
 #define RIP_SUFFIX nosuffix
@@ -69,8 +74,11 @@ namespace nanos {
     
     template <typename _WDQueue>
     class RipSchedPolicy : public SchedulePolicy {
+    public:
+      typedef RipSchedPolicy<_WDQueue> LocalPolicy;
     private:
       bool _steal;
+      bool _movePages;
       RipModes::type _mode;
       int _wSize, _wIntersection, _wInitExtra;
       double _imbalance;
@@ -84,11 +92,17 @@ namespace nanos {
       Lock _tmpQueueLock;
 
       Atomic<int> _lastPartitionScheduled;
+
+      bool _manual;
+      std::list<int> _wdStops;
+
+      Atomic<bool> _blocked;
       
     public:
-      RipSchedPolicy(bool steal, size_t minDepSize, RipModes::type mode, int wSize, int wIntersection, int wInitExtra, double imbalance, const std::string & distanceMatFilename, int seed, int partitionerSeed)
+      RipSchedPolicy(bool steal, bool movePages, size_t minDepSize, RipModes::type mode, int wSize, int wIntersection, int wInitExtra, double imbalance, const std::string & distanceMatFilename, int seed, int partitionerSeed, const std::string & endOfLoopName)
 	: SchedulePolicy( "Dependency" ),
           _steal(steal),
+          _movePages(movePages),
           _mode(mode),
           _wSize( mode == RipModes::DEPENDENCY ? wSize : wSize + wInitExtra),
           _wIntersection(wIntersection),
@@ -96,12 +110,31 @@ namespace nanos {
           _imbalance(imbalance),
           _distanceMatFilename(distanceMatFilename),
 	  _rand(seed),
-          _lastPartitionScheduled(0)
+          _lastPartitionScheduled(0),
+          _manual(false),
+          _blocked(false)
       {
 	_dep.setRandObject(_rand);
         _dep.minDepSize(minDepSize);
         _rip.minDepSize(minDepSize);
         _rip.seedPartitioner(partitionerSeed);
+
+        if (endOfLoopName != "") {
+          void (**helper_func)() = (void (**)()) dlsym(RTLD_DEFAULT, endOfLoopName.c_str());
+          if (helper_func == NULL) {
+            fatal0("Could not find \"end of loop\" function with name "
+                   << endOfLoopName << "! Stopping...");
+          }
+          else if (*helper_func != NULL) {
+            fatal0("The \"end of loop\" function with name "
+                   << endOfLoopName << "is already set! Stopping...");
+          }
+          else {
+            *helper_func = &LocalPolicy::endOfLoop;
+            _manual = true;
+            _wdStops.push_back(0);
+          }
+        }
       }
 
       virtual ~RipSchedPolicy()
@@ -114,7 +147,7 @@ namespace nanos {
         static_cast<RipSchedPolicy<_WDQueue> *>(sp)->_partitionDone();
       }
 
-      virtual void queue ( BaseThread *thread, WD &wd )
+      virtual void queue(BaseThread *thread, WD &wd)
       {
 	int socket = _dep.numSockets() + 1;
         if (not wd.isRuntimeTask()) {
@@ -189,10 +222,13 @@ namespace nanos {
 	}
 
 	if (wd != NULL and vNode < _dep.numSockets()) {
-          if (_mode == RipModes::DEPENDENCY)
-            _dep.updateSocket(wd, vNode, true);
-          else
+          if (_mode == RipModes::WINDOW)
             _rip.updateSocket(wd, vNode, true);
+
+          if (_movePages)
+            _dep.forceSocket(wd, vNode, node);
+          else if (_mode == RipModes::DEPENDENCY)
+            _dep.updateSocket(wd, vNode, true);
         }
 
 	return wd;
@@ -226,6 +262,10 @@ namespace nanos {
         }
 
         int current = _rip.addTask(*wd);
+
+        if (_manual)
+          return;
+        
         int first = std::max(_lastPartitionScheduled - _wIntersection + 1, 1);
         if (_lastPartitionScheduled == 0) {
             first = 1;
@@ -243,16 +283,19 @@ namespace nanos {
 
       virtual WD * atBlock(BaseThread * thread, WD * current)
       {
-        debug( "In atblock" );
+        _blocked = true;
         int first = std::max(_lastPartitionScheduled - _wIntersection + 1, 1);
         int last = _rip.lastAddedTask();
         if (last > _lastPartitionScheduled) {
-          if (_lastPartitionScheduled == 0) {
-            first = 1;
-            _wSize -= _wInitExtra;
+          if (_manual)
+            _endOfLoop(true);
+          else {
+            if (_lastPartitionScheduled == 0) {
+              first = 1;
+              _wSize -= _wInitExtra;
+            }
+            _schedulePartition(first, last, last - _wIntersection + 1);
           }
-          
-          _schedulePartition(first, last, last - _wIntersection + 1);
         }
 
         return SchedulePolicy::atBlock(thread, current);
@@ -263,7 +306,39 @@ namespace nanos {
         return (sys.getReadyNum() > 0) or (_rip.lastAddedTask() > _lastPartitionScheduled);
       }
 
+      static void endOfLoop()
+      {
+        ((LocalPolicy*) sys.getDefaultSchedulePolicy())->_endOfLoop();
+      }
+
     private:
+
+      void _endOfLoop(bool force=false)
+      {
+        if (_lastPartitionScheduled.value() == this->_rip.lastAddedTask()) {
+          // warning("WOOOPS, already added, forced? " << force);
+          // SyncLockBlock b(_tmpQueueLock);
+          // warning("tmp queue size: " << _tmpQueue.size());
+          // warning("tmp queue elements: ");
+          // for (std::list<WD *>::const_iterator it = _tmpQueue.begin();
+          //      it != _tmpQueue.end();
+          //      ++it) {
+          //   warning("\t" << WDData::getRipInfo(**it).id);
+          // }
+        }
+        else {
+          _wdStops.push_back(this->_rip.lastAddedTask());
+          if (_wdStops.size() == size_t(_wSize + 1) or force) {
+            int first = _wdStops.front() + 1;
+            _wdStops.pop_front();
+            int last = _wdStops.back();
+            while (_wdStops.size() > size_t(_wIntersection + 1))
+              _wdStops.pop_front();
+          
+            this->_schedulePartition(first, last, _wdStops.front() + 1);
+          }
+        }
+      }
 
       struct _PartitionerArgs
       {
@@ -321,7 +396,9 @@ namespace nanos {
 	while (it != _tmpQueue.end()) {
 	  WD *wd = *it;
           int socket = _rip.chooseSocketUnprotected(wd);
+
 	  if (socket < 0) {
+            debug("Bad socket for " << wd->getId());
 	    ++it;
 	    continue;
 	  }
@@ -334,7 +411,7 @@ namespace nanos {
 	}
 
         if (not _tmpQueue.empty()) {
-          warning( "Queue is not empty!! " << _tmpQueue.size() );
+          debug( "Queue is not empty!! " << _tmpQueue.size() );
         }
         _rip.releaseChooseSocket();
       }
@@ -568,6 +645,7 @@ namespace nanos {
     class ADD_SUFFIX(RipSchedPlugin) : public Plugin {
     private:
       bool _steal;
+      bool _movePages;
       bool _priority;
       int _minDepSize;
       int _wSize;
@@ -578,12 +656,14 @@ namespace nanos {
       int _partitionerSeed;
       std::string _mode;
       std::string _distanceMat;
+      std::string _endOfLoop;
       RipModes _ripModes;
       
     public:
       ADD_SUFFIX(RipSchedPlugin)()
         : Plugin( "RIP scheduling Plugin" STR_RIP_SUFFIX, 1),
           _steal(false),
+          _movePages(false),
           _priority(false),
           _minDepSize(1),
           _wSize(128),
@@ -607,6 +687,9 @@ namespace nanos {
         
         cfg.registerConfigOption( "rip-steal", NEW Config::FlagOption( _steal ), "Enable stealing from other sockets (default: false)" );
         cfg.registerArgOption( "rip-steal", "rip-steal" );
+
+        cfg.registerConfigOption( "rip-move-pages", new Config::FlagOption( _movePages ), "Enable page movement of output data (default: false)" );
+        cfg.registerArgOption( "rip-move-pages", "rip-move-pages" );
 
         cfg.registerConfigOption("rip-priority", NEW Config::FlagOption( _priority ), "Use priority queue for the ready queues (default: false)");
         cfg.registerArgOption("rip-priority", "rip-priority");
@@ -636,14 +719,17 @@ namespace nanos {
 
         cfg.registerConfigOption( "rip-distance-mat", NEW Config::StringVar ( _distanceMat ), "Matrix of distances (optional)" );
         cfg.registerArgOption( "rip-distance-mat", "rip-distance-mat" );
+
+        cfg.registerConfigOption( "rip-endofloop-name", NEW Config::StringVar ( _endOfLoop ), "Global name of pointer to function returning void (optional; address pointed to must be NULL)" );
+        cfg.registerArgOption( "rip-endofloop-name", "rip-endofloop-name" );
       }
       
       virtual void init()
       {
         if (_priority)
-          sys.setDefaultSchedulePolicy( NEW RipSchedPolicy<WDPriorityQueue<> >( _steal, _minDepSize, _ripModes.value(_mode), _wSize, _wIntersection, _wInitExtra, _imbalance, _distanceMat, _seed, _partitionerSeed ) );
+          sys.setDefaultSchedulePolicy( NEW RipSchedPolicy<WDPriorityQueue<> >( _steal, _movePages, _minDepSize, _ripModes.value(_mode), _wSize, _wIntersection, _wInitExtra, _imbalance, _distanceMat, _seed, _partitionerSeed, _endOfLoop ) );
         else
-          sys.setDefaultSchedulePolicy( NEW RipSchedPolicy<WDDeque>( _steal, _minDepSize, _ripModes.value(_mode), _wSize, _wIntersection, _wInitExtra, _imbalance, _distanceMat, _seed, _partitionerSeed ) );
+          sys.setDefaultSchedulePolicy( NEW RipSchedPolicy<WDDeque>( _steal, _movePages, _minDepSize, _ripModes.value(_mode), _wSize, _wIntersection, _wInitExtra, _imbalance, _distanceMat, _seed, _partitionerSeed, _endOfLoop ) );
       }
     };
   }

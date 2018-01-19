@@ -3,6 +3,8 @@
 
 #include "workdescriptor.hpp"
 #include "dependableobject.hpp"
+#include "instrumentation.hpp"
+#include "system.hpp"
 #include "config.hpp"
 
 #include "schedule.hpp"
@@ -24,6 +26,11 @@ extern "C" {
 
 #include <tr1/random>
 #include <cassert>
+
+#define RAISE_EVENT(x) \
+  NANOS_INSTRUMENT(sys.getInstrumentation()->raiseOpenBurstEvent(_partitioningEvent, (x));)
+#define CLOSE_EVENT \
+  NANOS_INSTRUMENT(sys.getInstrumentation()->raiseCloseBurstEvent(_partitioningEvent, 0);)
 
 namespace nanos {
   namespace ext {
@@ -73,6 +80,17 @@ namespace nanos {
         Atomic<int> _lastVirtId;
 
         Lock _initLock;
+
+#ifdef NANOS_INSTRUMENTATION_ENABLED
+        static Lock _generalLock;
+        static bool _generalInit;
+        static nanos_event_key_t _partitioningEvent;
+        static nanos_event_value_t _evAddTask;
+        static nanos_event_value_t _evBuildGraph;
+        static nanos_event_value_t _evDoPartition;
+        static nanos_event_value_t _evNotifyScheduler;
+        static nanos_event_key_t _funcNameEvent;
+#endif
 
       public:
         RipMethod();
@@ -125,13 +143,24 @@ namespace nanos {
         void _initFirstStrat();
         void _initWindowStrat();
         void _buildGraph(_Graph & g, int first, int last, int next);
-        void _doPartition(_Graph & g);
+        int _doPartition(_Graph & g);
 
 #ifdef USE_METAPART
         std::string _getStratString();
 #endif
       };
 
+#ifdef NANOS_INSTRUMENTATION_ENABLED
+      Lock RipMethod::_generalLock;
+      bool RipMethod::_generalInit;
+      nanos_event_key_t RipMethod::_partitioningEvent;
+      nanos_event_value_t RipMethod::_evAddTask = 0;
+      nanos_event_value_t RipMethod::_evBuildGraph = 0;
+      nanos_event_value_t RipMethod::_evDoPartition = 0;
+      nanos_event_value_t RipMethod::_evNotifyScheduler = 0;
+      nanos_event_key_t RipMethod::_funcNameEvent;
+#endif
+      
       inline RipMethod::_Graph::operator SCOTCH_Graph *()
       {
         SCOTCH_graphExit(&_g);
@@ -183,6 +212,24 @@ namespace nanos {
                  << std::endl
                  << "Please set NX_DEPS='cregions' or add '--deps=regions' to NX_ARGS.");
         }
+
+#ifdef NANOS_INSTRUMENTATION_ENABLED
+        if (not _generalInit) {
+          SyncLockBlock generalLock(_generalLock);
+          if (not _generalInit) {
+            _partitioningEvent = sys.getInstrumentation()->getInstrumentationDictionary()->registerEventKey( "rip-scheduler", "RIP scheduler events", /*abort*/ true, /*level*/ EVENT_ENABLED, /*stacked*/ false);
+            _evAddTask = sys.getInstrumentation()->getInstrumentationDictionary()->registerEventValue("rip-scheduler", "RIP-ADD-TASK", "Add task");
+            _evBuildGraph = sys.getInstrumentation()->getInstrumentationDictionary()->registerEventValue("rip-scheduler", "RIP-BUILD-GRAPH", "Build graph");
+            _evDoPartition = sys.getInstrumentation()->getInstrumentationDictionary()->registerEventValue("rip-scheduler", "RIP-DO-PARTITION", "Do partition");
+            _evNotifyScheduler = sys.getInstrumentation()->getInstrumentationDictionary()->registerEventValue("rip-scheduler", "RIP-NOTIFY-SCHEDULER", "Partition cleanup");
+
+            _funcNameEvent = sys.getInstrumentation()->getInstrumentationDictionary()->registerEventKey("rip-funcadd", "RIP task added", true, EVENT_ENABLED);
+            
+            _generalInit = true;
+          }
+        }
+#endif
+
 
         _initFirstStrat();
         _initWindowStrat();
@@ -326,21 +373,31 @@ namespace nanos {
 
       inline int RipMethod::addTask(WD & wd)
       {
-        if (_ripInfo(wd).id != 0)
+        NANOS_INSTRUMENT(nanos_event_value_t _funcNameVal = sys.getInstrumentation()->getInstrumentationDictionary()->registerEventValue("rip-funcadd", wd.getDescription(), wd.getDescription(), false););
+        RAISE_EVENT(_evAddTask);
+        if (_ripInfo(wd).id != 0) {
+          CLOSE_EVENT;
           return _ripInfo(wd).id;
+        }
 
+        NANOS_INSTRUMENT(sys.getInstrumentation()->raiseOpenBurstEvent(_funcNameEvent, _funcNameVal););
         int virtId = ++_lastVirtId;
         _ripInfo(wd).id = virtId;
 
         _graphLock.acquire();
         // Add missing elements to the basic graph structure
 	if (_deps.find(virtId) == _deps.end()) {
-          int n = _deps.size();
-	  for (int i = n; i <= virtId; ++i) {
-	    _deps[i].size(); // ensure vertex creation
-	    _invdeps[i].size();
-	  }
-	  /// _lastWd = virtId;
+          _deps[virtId].size();
+          _invdeps[virtId].size();
+          // int n = 1;
+          // if (_deps.rbegin() != _deps.rend()) {
+          //   n = _deps.rbegin()->first;
+          // }
+	  // for (int i = n; i <= virtId; ++i) {
+	  //   _deps[i].size(); // ensure vertex creation
+	  //   _invdeps[i].size();
+	  // }
+	  // /// _lastWd = virtId;
 	}
         
         DOSubmit *doS = wd.getDOSubmit();
@@ -411,16 +468,28 @@ namespace nanos {
         
 	_graphLock.release();
 
+        NANOS_INSTRUMENT(sys.getInstrumentation()->raiseCloseBurstEvent(_funcNameEvent, 0););
+        CLOSE_EVENT;
         return virtId;
       }
 
       inline void RipMethod::partition(int first, int last, int nextFirst)
       {
         _Graph g;
+        RAISE_EVENT(_evBuildGraph);
         _buildGraph(g, first, last, nextFirst);
-        _doPartition(g);
+        CLOSE_EVENT;
+        RAISE_EVENT(_evDoPartition);
+        // warning("Starting partition, size " << last - first + 1);
+        if (_doPartition(g) != 0) {
+          warning("Bad partition!");
+        }
+        // warning("Finished partition");
+        CLOSE_EVENT;
 
+        RAISE_EVENT(_evNotifyScheduler);
         _notifyScheduler(_parentSched);
+        CLOSE_EVENT;
       }
 
       inline void RipMethod::_buildGraph(_Graph & g, int first, int last, int next)
@@ -433,6 +502,12 @@ namespace nanos {
         g.last = last;
 
         _graphLock.acquire();
+        // warning("First: " << first << ", last: " << last << ", next: " << next << ", size: " << _deps.size());
+        // std::map<int, std::map<int, size_t> >::iterator itt = _deps.begin();
+        // ++itt;
+        // if (itt != _deps.end()) {
+        //   warning("  ffirst: " << itt->first);
+        // }
         for (int i = first; i <= last; ++i) {
 	  const std::map<int, size_t> &v1 = _deps[i];
 	  for (std::map<int, size_t>::const_iterator it = v1.begin();
@@ -467,7 +542,7 @@ namespace nanos {
 
 	  g.verttab.push_back(g.edgetab.size() + g.baseval);
         }
-
+        
         std::map<const void *, int>::iterator it_p = _pred.begin();
 	while (it_p != _pred.end()) {
 	  std::map<const void *, int>::iterator next_it = it_p;
@@ -488,36 +563,48 @@ namespace nanos {
 	  it_p = next_it;
 	}
 
+        // warning("\tFirst: " << first << ", last: " << last << ", next: " << next << ", size: " << _deps.size());
+        // itt = _deps.begin();
+        // if (itt != _deps.end()) {
+        //   ++itt;
+        //   if (itt != _deps.end()) {
+        //     warning("  ffirst: " << itt->first);
+        //   }
+        // }
+
         _graphLock.release();
       }
 
-      void RipMethod::_doPartition(_Graph & g)
+      int RipMethod::_doPartition(_Graph & g)
       {
         _tsLock.acquireWrite();
+        int status;
         int n = _taskSocket.size();
         if (n <= g.last) {
           _taskSocket.resize(g.last + 1, -1);
         }
         if (g.first >= n) {
-          SCOTCH_graphMap(g, // implicit conversion to SCOTCH_Graph *
-                          &_arch,
-                          &_firstStrat,
-                          &_taskSocket[g.first]);
+          status = SCOTCH_graphMap(g, // implicit conversion to SCOTCH_Graph *
+                                   &_arch,
+                                   &_firstStrat,
+                                   &_taskSocket[g.first]);
         }
         else { // nothing to propagate...
 #ifdef USE_METAPART
-          SCOTCH_graphPartFixed(g, // implicit conversion to SCOTCH_Graph *
-	  			_numSockets,
-	  			&_windowStrat,
-	  			&_taskSocket[g.first]);
+          status = SCOTCH_graphPartFixed(g, // implicit conversion to SCOTCH_Graph *
+                                         _numSockets,
+                                         &_windowStrat,
+                                         &_taskSocket[g.first]);
 #else
-          SCOTCH_graphMapFixed(g, // implicit conversion to SCOTCH_Graph *
-                               &_arch,
-                               &_windowStrat,
-                               &_taskSocket[g.first]);
+          status = SCOTCH_graphMapFixed(g, // implicit conversion to SCOTCH_Graph *
+                                        &_arch,
+                                        &_windowStrat,
+                                        &_taskSocket[g.first]);
 #endif
         }
         _tsLock.releaseWrite();
+
+        return status;
       }
 
 #ifdef USE_METAPART
@@ -599,5 +686,8 @@ namespace nanos {
     }
   }
 }
+
+#undef RAISE_EVENT
+#undef CLOSE_EVENT
 
 #endif
