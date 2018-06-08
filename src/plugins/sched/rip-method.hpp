@@ -563,15 +563,6 @@ namespace nanos {
 	  it_p = next_it;
 	}
 
-        // warning("\tFirst: " << first << ", last: " << last << ", next: " << next << ", size: " << _deps.size());
-        // itt = _deps.begin();
-        // if (itt != _deps.end()) {
-        //   ++itt;
-        //   if (itt != _deps.end()) {
-        //     warning("  ffirst: " << itt->first);
-        //   }
-        // }
-
         _graphLock.release();
       }
 
@@ -610,41 +601,20 @@ namespace nanos {
 #ifdef USE_METAPART
       std::string RipMethod::_getStratString()
       {
-#define MAXSTR 8192
-#define NREFPASS 10
-#define NINITPASS 4
-#define MAXNEGMOVE 300
-
         int nparts = _numSockets;
         double imbalance = _imbalance;
-       
-	int gainscheme, greedy, connectivity, useseeds, npass, multilevel;
-  
-	gainscheme = KGGGP_GAIN_CLASSIC;
-	greedy = KGGGP_GREEDY_GLOBAL;
-	connectivity = KGGGP_CONNECTIVITY_YES;
-	useseeds = KGGGP_USE_SEEDS;
-	// npass = NINITPASS;
-	npass = NINITPASS;
-	multilevel = 0;
+        
+	int npass = 4;
+        int nrefpass = 10;
+	bool multilevel = false;
 
-	int maxnegmove = MAXNEGMOVE;
-	// if(maxnegmove < 0) maxnegmove = INT_MAX;  
+	int maxnegmove = 300;
+	char gain = 'c'; // c = classic ; d = diff ; h = hybrid
+	char grdy = 'g'; // g = global ; l = local
+	char conn = 'y'; // n = no, y = yes
+	char seed = 's'; // n = no ; s = seeds ; b = bubbles
   
-	char gain = 'c';
-	if(gainscheme == KGGGP_GAIN_DIFF) gain = 'd';
-	else if(gainscheme == KGGGP_GAIN_HYBRID) gain = 'h';  
-  
-	char grdy = 'g';
-	if(greedy == KGGGP_GREEDY_LOCAL) grdy = 'l';
-  
-	char conn = 'n';
-	if(connectivity == KGGGP_CONNECTIVITY_YES) conn = 'y';
-  
-	char seed = 'n';
-	if(useseeds == KGGGP_USE_SEEDS) seed = 's'; else if(useseeds == KGGGP_USE_BUBBLES) seed = 'b';
-  
-	char s[MAXSTR];
+	char s[8192];
 	snprintf (s, sizeof(s),
 		  "g{bal=%lf,gain=%c,seed=%c,greedy=%c,conn=%c,pass=%d}f{bal=%lf,pass=%d,move=%d}", // initial part
 		  imbalance, // <- ubfactor
@@ -654,7 +624,7 @@ namespace nanos {
 		  conn,      // <- enforce connectivity
 		  npass,     // <- nb of KGGGP passes
 		  imbalance, // <- ubfactor	    
-		  NREFPASS,
+		  nrefpass,
                   maxnegmove // <- maxnegmove for refinement (or -1)	    
 		  );
 
@@ -668,18 +638,13 @@ namespace nanos {
 		    s,          // <- KGGGP + FM refinement
 		    imbalance,  // <- ubfactor
 		    maxnegmove, // <- maxnegmove for refinement (or -1)	    	    
-		    NREFPASS    // <- max nb of pass (or -1)
+		    nrefpass    // <- max nb of pass (or -1)
 		    );
   
 	  sss = ss;
 	}
 
 	return std::string(sss);
-	
-#undef MAXSTR
-#undef NREFPASS
-#undef NINITPASS
-#undef MAXNEGMOVE
       }
 #endif
       
